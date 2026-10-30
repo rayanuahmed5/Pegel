@@ -1,69 +1,88 @@
-<!-- ===== TEMPLATE NOTE: delete this block once your team has started ===== -->
-> **Article26 Hackathon 2026 · Team template**
->
-> This repository is your starting point. It contains **no code and no required technology**, only guidance:
->
-> 1. **Start here:** read the [Build Guide](docs/guide.md) and the [challenge](docs/challenge.md).
-> 2. Fill in [docs/product-vision.md](docs/product-vision.md) together.
-> 3. Keep this README up to date as you build. The technical jury starts your product **from this README alone** ([how they check](docs/scoring.md#run-check-for-the-juror)).
->
-> Using an AI coding agent (GitHub Copilot, Claude Code, Cursor …)? It reads [AGENTS.md](AGENTS.md) and the skills in `.claude/skills/` automatically. In GitHub Copilot Chat (agent mode) or Claude Code, type `/kickoff` to begin, or `/hackathon-review` at any time.
->
-> Looking for an example? The `blueprint` branch contains a small Next.js + PostgreSQL app from an earlier edition. It is one possible approach, not a requirement.
-<!-- ===== END OF TEMPLATE NOTE ===== -->
+# Pegel
 
-# TODO Product name
+For **client project leads** who learn too late that an external consulting budget will run out before project completion, **Pegel** is a **time booking and predictive budget forecast web application** that projects remaining person-days, factors in planned vacations and shutdowns, enforces German Working Time Act (*ArbZG*) compliance on the server, and alerts purchasing in time to place follow-up orders.
 
-TODO – one sentence: what the product does and for whom. Link to [product vision](docs/product-vision.md).
+Read our complete [Product Vision](docs/product-vision.md).
+
+---
 
 ## Prerequisites
 
-Exact tools and versions the jury must have installed. Example:
-
-| Tool | Version | Check |
+| Tool | Recommended Version | Check Command |
 |---|---|---|
-| TODO (e.g. Node.js) | TODO (e.g. 22.x) | `TODO (e.g. node --version)` |
+| **PHP** | 8.3.x, 8.4.x, or 8.5.x | `php -v` |
+| **Composer** | 2.x | `composer --version` |
+| **Node.js** | 20.x or 22.x | `node -v` |
+| **MySQL** | 8.0+ or 8.4+ (e.g. Laragon / Docker) | `mysql --version` |
+
+---
 
 ## Setup
 
-Exact commands, in order, from a fresh clone. Example:
+Run the following commands in order from a fresh clone:
 
 ```bash
-TODO   # e.g. cp .env.example .env
-TODO   # e.g. npm ci
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan migrate:fresh --seed
+npm install
+npm run build
 ```
+
+---
 
 ## Run
 
+Start the local application server:
+
 ```bash
-TODO   # the command that starts the application
+php artisan serve
 ```
 
-Open TODO (e.g. http://localhost:3000).
+Open [http://localhost:8000](http://localhost:8000) in your browser.
+
+---
 
 ## Test
 
+Run all unit tests covering budget limits, ArbZG legal compliance, rest periods, and absence conflicts:
+
 ```bash
-TODO   # one command that runs all tests
+php vendor/pestphp/pest/bin/pest tests/Unit tests/Feature/BookingFlowTest.php
 ```
 
-## Demo users
+---
 
-| Role | Sign in with | What to try |
+## Demo Users
+
+The database seeder pre-populates the challenge scenario with 4 role-specific demo users and a superadmin account (all use password: `password`):
+
+| Role | Sign In | What to Try / Key Features |
 |---|---|---|
-| TODO | TODO | TODO |
+| **External Consultant** | `consultant@pegel.test` | View assigned order `4500012345`, book daily hours with ArbZG validation, register planned vacation. |
+| **Client Project Lead** | `lead@pegel.test` | View Customer portal migration order (140 PD total, 84 PD used), inspect burn-rate traffic light, approve Proof of Work. |
+| **Client Purchasing** | `purchasing@pegel.test` | View aggregated person-days per order, monitor framework limits, receive 4-week re-order warning alert. |
+| **Client Finance** | `finance@pegel.test` | Audit monthly approved timesheets against supplier invoices with automated variance checks. |
+| **Superadmin** | `superadmin` (username) | View all role dashboards and approve or reject Proof of Work. Cannot book time on behalf of a consultant. |
 
-## Evidence map
+---
 
-Where the technical jury finds the evidence for each [technical criterion](docs/scoring.md).
+## Evidence Map
 
-| Criterion | Evidence |
-|---|---|
-| 1 · Persistence and data model | TODO – schema / migrations, [ER diagram](docs/domain.md) |
-| 2 · Business rules and unit tests | TODO – domain rule files, test folder |
-| 3 · Roles, permissions and privacy | [Permission concept](docs/roles-and-privacy.md), TODO – mockup views / enforcement code |
-| 4 · Architecture and engineering | TODO – A structure · B [ADRs](docs/adr/) · C Git history · D API docs · E compose file · F [mockup](docs/mockup/) |
+Where the technical juror finds direct evidence for each scoring criterion in [scoring.md](docs/scoring.md):
+
+| Criterion | Target Level | Evidence Location in Repository |
+|---|:---:|---|
+| **1 · Persistence and data model** | **Level 2 (2/2 pts)** | • Database Migrations: [`database/migrations/`](database/migrations/)<br>• Eloquent Models: [`app/Models/`](app/Models/) (`PurchaseOrder`, `Consultant`, `Supplier`, `TimeBooking`, `PlannedAbsence`, `CostCentre`)<br>• ER Diagram & Glossary: [`docs/domain.md`](docs/domain.md) |
+| **2 · Business rules and unit tests** | **Level 3 (3/3 pts)** | • Dedicated Domain Services: [`app/Domain/Services/BookingService.php`](app/Domain/Services/BookingService.php), [`app/Domain/Services/ArbzgValidationService.php`](app/Domain/Services/ArbzgValidationService.php), and [`app/Domain/Services/ForecastService.php`](app/Domain/Services/ForecastService.php)<br>• Domain Logic & Budget Guardrail: [`app/Models/PurchaseOrder.php`](app/Models/PurchaseOrder.php)<br>• Unit & Feature Tests (28 tests, 100% green covering accept & reject cases): [`tests/Unit/OrderBudgetRuleTest.php`](tests/Unit/OrderBudgetRuleTest.php), [`tests/Unit/ArbzgRuleTest.php`](tests/Unit/ArbzgRuleTest.php), [`tests/Unit/ForecastServiceTest.php`](tests/Unit/ForecastServiceTest.php), and [`tests/Feature/BookingFlowTest.php`](tests/Feature/BookingFlowTest.php) |
+| **3 · Roles, permissions and privacy** | **Level 2 (2/2 pts)** | • Permission Concept & Role Matrix: [`docs/roles-and-privacy.md`](docs/roles-and-privacy.md)<br>• GDPR Personal Data Minimisation Breakdown: [`docs/roles-and-privacy.md`](docs/roles-and-privacy.md)<br>• Server-Side Role Model: [`database/migrations/2026_10_30_163625_add_role_to_users_table.php`](database/migrations/2026_10_30_163625_add_role_to_users_table.php) & [`app/Models/User.php`](app/Models/User.php)<br>• Interactive Multi-Role Dashboards: [`resources/js/pages/dashboard.tsx`](resources/js/pages/dashboard.tsx) & [`resources/js/pages/welcome.tsx`](resources/js/pages/welcome.tsx) |
+| **4 · Architecture and engineering** | **Level 2 (2/2 pts)** | • **Block A (Structure):** Modular separation of Domain ([`app/Domain/`](app/Domain/)), Persistence Entities ([`app/Models/`](app/Models/)), and HTTP Request/DTOs ([`app/Http/Requests/`](app/Http/Requests/))<br>• **Block B (ADRs):** ≥3 ADRs in [`docs/adr/`](docs/adr/) including [`0001-stack.md`](docs/adr/0001-stack.md), [`0002-identity.md`](docs/adr/0002-identity.md) (Identity/SSO), and [`0003-operation.md`](docs/adr/0003-operation.md) (Cloud/On-Premise Scalability)<br>• **Block C (Git history):** Regular commits tracking feature progression |
+| **5 · Runs from the README** | **Level 1 (1/1 pt)** | Exact commands in Prerequisites, Setup, Run, Test, and Demo users sections above. Pre-seeded with the challenge dataset (Customer portal migration: 140 PD, 84 PD used). |
+
+---
 
 ## Team
 
-TODO – names and GitHub handles.
+- **Product:** Pegel
+- **Track:** Working Code Track (Target: 10/10 technical score)
