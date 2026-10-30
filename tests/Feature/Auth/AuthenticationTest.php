@@ -38,7 +38,7 @@ test('users can authenticate using the login screen', function () {
     $user = User::factory()->create();
 
     $response = $this->post(route('login.store'), [
-        'email' => $user->email,
+        'login' => $user->email,
         'password' => 'password',
     ]);
 
@@ -46,11 +46,24 @@ test('users can authenticate using the login screen', function () {
     $response->assertRedirect(route('dashboard'));
 });
 
+test('seeded superadmin can authenticate using its username', function () {
+    $this->seed();
+
+    $response = $this->post(route('login.store'), [
+        'login' => 'superadmin',
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticatedAs(User::query()->where('username', 'superadmin')->firstOrFail());
+    $superadmin = User::query()->where('username', 'superadmin')->firstOrFail();
+    $response->assertRedirect("/{$superadmin->currentTeam->slug}/dashboard");
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 
     $this->post(route('login.store'), [
-        'email' => $user->email,
+        'login' => $user->email,
         'password' => 'wrong-password',
     ]);
 
@@ -72,7 +85,7 @@ test('users are rate limited', function () {
     RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
 
     $response = $this->post(route('login.store'), [
-        'email' => $user->email,
+        'login' => $user->email,
         'password' => 'wrong-password',
     ]);
 
