@@ -138,6 +138,14 @@ class PurchaseOrder extends Model
      */
     public function remainingBudgetPD(): float
     {
+        return $this->calculateRemainingBudget();
+    }
+
+    /**
+     * Remaining free budget in person-days.
+     */
+    public function calculateRemainingBudget(): float
+    {
         return round($this->remainingBudgetHours() / 8.0, 2);
     }
 

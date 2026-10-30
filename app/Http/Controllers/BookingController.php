@@ -9,8 +9,10 @@ use App\Domain\Exceptions\OverlappingBookingException;
 use App\Domain\Exceptions\PlannedAbsenceConflictException;
 use App\Domain\Services\BookingService;
 use App\Http\Requests\StoreTimeBookingRequest;
+use App\Models\Consultant;
 use App\Models\PurchaseOrder;
 use App\Models\TimeBooking;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -23,13 +25,14 @@ class BookingController extends Controller
     /**
      * Store a new time booking with server-side legal & budget validation.
      */
-    public function store(StoreTimeBookingRequest $request): RedirectResponse
+    public function store(StoreTimeBookingRequest $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validated();
 
         $user = $request->user();
         abort_unless($user->isConsultant(), 403);
 
+        /** @var Consultant|null $consultant */
         $consultant = $user->consultant;
 
         if (! $consultant) {
@@ -40,7 +43,7 @@ class BookingController extends Controller
         $order = PurchaseOrder::query()->findOrFail($validated['purchase_order_id']);
 
         try {
-            $this->bookingService->book(
+            $booking = $this->bookingService->book(
                 order: $order,
                 consultant: $consultant,
                 date: $validated['date'],
@@ -53,6 +56,13 @@ class BookingController extends Controller
                 status: 'pending'
             );
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => "Booking logged successfully on order {$order->order_number}.",
+                    'booking_id' => $booking->id,
+                ], 201);
+            }
+
             return back()->with('success', "Booking logged successfully on order {$order->order_number} ({$validated['duration_hours']}h).");
         } catch (
             BudgetExceededException|
@@ -61,6 +71,10 @@ class BookingController extends Controller
             PlannedAbsenceConflictException|
             ConsultantNotAssignedException $e
         ) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 400);
+            }
+
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
@@ -72,7 +86,11 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->isSuperAdmin() || in_array($user->role, ['project_lead', 'finance'], true), 403);
+        abort_unless(
+            $user->isSuperAdmin() ||
+                ($user->isProjectLead() && $booking->purchaseOrder->project_lead_id === $user->id),
+            403
+        );
 
         $booking->approve($user);
 
@@ -86,7 +104,11 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->isSuperAdmin() || in_array($user->role, ['project_lead', 'finance'], true), 403);
+        abort_unless(
+            $user->isSuperAdmin() ||
+                ($user->isProjectLead() && $booking->purchaseOrder->project_lead_id === $user->id),
+            403
+        );
 
         $reason = $request->input('reason', 'Work description or hours require clarification.');
         $booking->reject($user, $reason);

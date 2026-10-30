@@ -180,7 +180,7 @@ class ForecastService
                         ->first();
 
                     if ($absence) {
-                        $absenceNotes[] = "{$absence->type} ({$absence->description})";
+                        $absenceNotes[] = 'Reduced capacity';
                     } else {
                         // Consultant works this day
                         $weekActualPD += $nominalDailyPerPerson;

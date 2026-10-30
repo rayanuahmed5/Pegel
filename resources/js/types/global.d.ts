@@ -11,6 +11,7 @@ declare module '@inertiajs/core' {
     export interface InertiaConfig {
         sharedPageProps: {
             name: string;
+            demoRoleSwitchEnabled: boolean;
             auth: Auth;
             sidebarOpen: boolean;
             currentTeam: Team | null;

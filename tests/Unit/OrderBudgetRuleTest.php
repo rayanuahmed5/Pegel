@@ -44,6 +44,7 @@ beforeEach(function () {
 test('it calculates remaining budget in hours and person days accurately', function () {
     expect($this->order->remainingBudgetHours())->toBe(80.0)
         ->and($this->order->remainingBudgetPD())->toBe(10.0)
+        ->and($this->order->calculateRemainingBudget())->toBe(10.0)
         ->and($this->order->usedHours())->toBe(0.0)
         ->and($this->order->usedPD())->toBe(0.0)
         ->and($this->order->budgetUsagePercent())->toBe(0.0);

@@ -20,6 +20,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $consultant = $user->consultant;
+        $canViewIndividualBookings = in_array($user->role, ['project_lead', 'superadmin'], true);
         $pendingInvitations = TeamInvitation::query()
             ->with(['inviter', 'team'])
             ->whereRaw('LOWER(email) = ?', [strtolower($user->email)])
@@ -38,18 +39,28 @@ class DashboardController extends Controller
                 ],
             ]);
 
-        // Fetch purchase orders with eager-loaded relations
-        $orders = PurchaseOrder::query()
-            ->with(['supplier', 'costCentre', 'consultants'])
+        $ordersQuery = PurchaseOrder::query()
+            ->with(['supplier', 'costCentre'])
+            ->when($canViewIndividualBookings, fn ($query) => $query->with('consultants'));
+
+        if ($user->isConsultant() && $consultant) {
+            $ordersQuery->whereHas('consultants', fn ($query) => $query->whereKey($consultant->id));
+        } elseif ($user->isProjectLead()) {
+            $ordersQuery->where('project_lead_id', $user->id);
+        } elseif (! in_array($user->role, ['purchasing', 'finance', 'superadmin'], true)) {
+            $ordersQuery->whereRaw('1 = 0');
+        }
+
+        $orders = $ordersQuery
             ->get()
-            ->map(function (PurchaseOrder $order) {
+            ->map(function (PurchaseOrder $order) use ($canViewIndividualBookings) {
                 $forecast = $this->forecastService->calculateForecast($order);
 
-                return [
+                $orderData = [
                     'id' => $order->id,
                     'order_number' => $order->order_number,
                     'title' => $order->title,
-                    'description' => $order->description,
+                    'description' => $canViewIndividualBookings ? $order->description : null,
                     'supplier_name' => $order->supplier->name,
                     'cost_centre_code' => $order->costCentre->code,
                     'cost_centre_name' => $order->costCentre->name,
@@ -65,13 +76,18 @@ class DashboardController extends Controller
                     'start_date' => $order->start_date,
                     'end_date' => $order->end_date,
                     'status' => $order->status,
-                    'consultants' => $order->consultants->map(fn ($c) => [
-                        'id' => $c->id,
-                        'name' => $c->name,
-                        'email' => $c->email,
-                    ]),
                     'forecast' => $forecast,
                 ];
+
+                if ($canViewIndividualBookings) {
+                    $orderData['consultants'] = $order->consultants->map(fn ($consultant) => [
+                        'id' => $consultant->id,
+                        'name' => $consultant->name,
+                        'email' => $consultant->email,
+                    ]);
+                }
+
+                return $orderData;
             });
 
         // Consultant view props
@@ -79,7 +95,7 @@ class DashboardController extends Controller
         $myBookings = [];
         $myAbsences = [];
 
-        if ($consultant) {
+        if ($user->isConsultant() && $consultant) {
             $assignedOrders = $consultant->purchaseOrders()
                 ->get()
                 ->map(fn (PurchaseOrder $po) => [
@@ -118,10 +134,22 @@ class DashboardController extends Controller
                 ]);
         }
 
-        // Project lead props: pending proof of work approvals
-        $pendingApprovals = TimeBooking::query()
+        $pendingApprovalsQuery = TimeBooking::query()
             ->with(['purchaseOrder', 'consultant'])
             ->where('status', 'pending')
+            ->when(
+                $user->isProjectLead(),
+                fn ($query) => $query->whereHas(
+                    'purchaseOrder',
+                    fn ($purchaseOrders) => $purchaseOrders->where('project_lead_id', $user->id)
+                )
+            );
+
+        if (! $user->isProjectLead() && ! $user->isSuperAdmin()) {
+            $pendingApprovalsQuery->whereRaw('1 = 0');
+        }
+
+        $pendingApprovals = $pendingApprovalsQuery
             ->latest('date')
             ->get()
             ->map(fn (TimeBooking $b) => [
@@ -136,9 +164,11 @@ class DashboardController extends Controller
             ]);
 
         // Purchasing alerts
-        $reorderAlerts = $orders->filter(function ($order) {
-            return in_array($order['forecast']['traffic_light'], ['yellow', 'red']);
-        })->values();
+        $reorderAlerts = in_array($user->role, ['project_lead', 'purchasing', 'superadmin'], true)
+            ? $orders->filter(function ($order) {
+                return in_array($order['forecast']['traffic_light'], ['yellow', 'red']);
+            })->values()
+            : collect();
 
         // High-level KPIs
         $totalOrderedPD = $orders->sum('ordered_budget_pd');

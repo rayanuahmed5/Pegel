@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class DemoRoleController extends Controller
 {
@@ -14,7 +15,12 @@ class DemoRoleController extends Controller
      */
     public function switchRole(Request $request): RedirectResponse
     {
-        $role = $request->input('role', 'consultant');
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        $validated = $request->validate([
+            'role' => ['required', Rule::in(['consultant', 'project_lead', 'purchasing', 'finance'])],
+        ]);
+        $role = $validated['role'];
 
         $emailMap = [
             'consultant' => 'consultant@pegel.test',
@@ -23,7 +29,7 @@ class DemoRoleController extends Controller
             'finance' => 'finance@pegel.test',
         ];
 
-        $email = $emailMap[$role] ?? 'lead@pegel.test';
+        $email = $emailMap[$role];
 
         $user = User::query()->where('email', $email)->first();
 

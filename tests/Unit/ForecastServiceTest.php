@@ -126,6 +126,28 @@ test('it factors in vacations to extend calendar depletion date', function () {
     expect($adjustedDate->greaterThan($unadjustedDate))->toBeTrue();
 });
 
+test('forecast schedule reports reduced capacity without exposing absence descriptions', function () {
+    PlannedAbsence::query()->create([
+        'consultant_id' => $this->elena->id,
+        'type' => 'vacation',
+        'start_date' => '2026-10-26',
+        'end_date' => '2026-10-30',
+        'description' => 'Private travel plans',
+    ]);
+
+    $forecast = $this->forecastService->calculateForecast(
+        $this->order,
+        Carbon::parse('2026-10-16')
+    );
+    $weeklyAbsences = collect($forecast['weekly_burn_schedule'])
+        ->flatMap(fn (array $week) => $week['absences'])
+        ->all();
+
+    expect($weeklyAbsences)
+        ->toContain('Reduced capacity')
+        ->not->toContain('Private travel plans');
+});
+
 test('it calculates missing person days until project completion in week 5 of 2027', function () {
     // Register autumn vacation blocks and year-end shutdown as per challenge scenario
     PlannedAbsence::query()->create([
